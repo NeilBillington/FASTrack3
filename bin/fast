@@ -1,12 +1,13 @@
-#!/usr/bin/env python
+#!/Users/neilbillington/.virtualenvs/fast/bin/python
 import os
 import sys
-import subprocess32 as subprocess
+import subprocess
 import time
 import numpy as np
 import argparse
 import warnings
 import getpass
+
 
 from FAST import motility
 
@@ -17,12 +18,6 @@ def is_number(s):
         return True
     except ValueError:
         return False
-
-def commands_getstatusoutput(cmd):
-    p = subprocess.run( cmd.split(' '), stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-            , universal_newlines=True)
-    return p.returncode, str(p.stdout) + str(p.stderr)
 
 #Suppress all the warnings
 warnings.filterwarnings("ignore")
@@ -36,6 +31,8 @@ usage            = ['%(prog)s -d [DIRECTORY]',
                     '',
                     'FAST provides fast and accurate analysis of actin gliding assay movies.',
                     'For bugs and other problems please contact Tural Aksel at turalaksel@gmail.com',
+                    'Edited by Neil B March 2020 for use on Macbook Air, re-edited Mar 2022 to remove PPSS requirement',
+                    'Default pixel values for Nikon TIRF',
                     '------------------------------------------------------------------------'
                     ]
 
@@ -50,13 +47,15 @@ parser.add_argument('-p'    ,default = 5,       type=int,   help='minimum length
 parser.add_argument('-n'    ,default = 5,       type=int,   help='number of consecutive frames for averaging (Default:5)')
 
 parser.add_argument('-pt'   ,default = 500,     type=int,   help='percent tolerance (Default:none)')
-parser.add_argument('-px'   ,default = 80.65,   type=float, help='pixel size in nm (Default:80.65 nm)')
+parser.add_argument('-fpt'  ,default = 500,     type=int,   help='filament percent tolerance (Default:none)')
+parser.add_argument('-px'   ,default = 130.00,   type=float, help='pixel size in nm (Default:130 nm)')
 parser.add_argument('-ymax' ,default = 1500,    type=int,   help='maximum velocity for the plot in nm/s (Default:1500)')
 parser.add_argument('-xmax' ,default = 10000,   type=int,   help='maximum length for the plot in nm (Default:10000)')
 parser.add_argument('-cl'   ,default = 'b',     type=str,   help='color for maximum velocity points (Default:blue)')
 parser.add_argument('-fx'   ,default = 'none',  choices = ['none','exp','uyeda'], type=str, help='function to be fitted to maximum velocity data')
-parser.add_argument('-maxd' ,default = 2016.25, type=float, help='maximum allowed distance in nm between adjacent frames for a filament (Default:2016.25 nm)')
-parser.add_argument('-minv' ,default = 80,      type=float, help='minimum average path velocity for a filament to be classified as stuck (Default:80 nm/s)')
+parser.add_argument('-maxd' ,default = 2000, type=float, help='maximum allowed distance in nm between adjacent frames for a filament (Default:2000 nm)')
+parser.add_argument('-minv' ,default = 0,      type=float, help='minimum average path velocity for a filament to be classified as stuck (Default:2 nm/s)')
+parser.add_argument('-minvfil' ,default = 0,      type=float, help='minimum average path velocity for a filament to be classified as stuck (Default:0 nm/s)')
 
 parser.add_argument('-oscore'   ,default = 0.4, type=float, help='overlap score cutoff value to make the connections between filaments - advanced option (Default:0.4)')
 parser.add_argument('-lascore'  ,default = 1.0, type=float, help='log-area score cutoff value to make the connections between filaments - advanced option (Default:1.0)')
@@ -70,16 +69,20 @@ parser.print_help()
 
 #Get username
 user_name = getpass.getuser()
-print('-'*10+'Welcome %s'%(user_name)+'-'*10)
+print ('-'*10+'Welcome %s'%(user_name)+'-'*10)
 
 #Get the argument
 main_dir             = args_dict['d']
 force_analysis       = args_dict['f']
 recalculate          = args_dict['r']
 num_frames_ave       = args_dict['n']
+
+num_points			 = num_frames_ave
+
 make_movie           = args_dict['m']
 min_path_length      = args_dict['p']
 percent_tolerance    = args_dict['pt']
+fil_tolerance        = args_dict['fpt']
 plot_ymax            = args_dict['ymax']
 plot_xmax            = args_dict['xmax']
 maxvel_color         = args_dict['cl']
@@ -87,6 +90,9 @@ fit_function         = args_dict['fx']
 pixel_size           = args_dict['px']
 max_velocity         = args_dict['maxd']
 min_velocity         = args_dict['minv']
+minvfil              = args_dict['minvfil']
+
+max_length	= plot_xmax
 
 #Hard-coded parameters
 overlap_score_cutoff        = args_dict['oscore']
@@ -99,9 +105,12 @@ force_analysis_str = 'False'
 if force_analysis:
     force_analysis_str = 'True'
 
+
+main_dir=os.path.normpath(main_dir)
+
 #Check if the last character is '/' - if yes, remove it
-if main_dir != None and len(main_dir) > 0 and main_dir[-1] == '/':
-    main_dir = main_dir[:-1]
+# if main_dir != None and len(main_dir) > 0 and main_dir[-1] == '/':
+#     main_dir = main_dir[:-1]
 
 #Check if the directory exists
 if main_dir == None or not os.path.isdir(main_dir):
@@ -112,6 +121,12 @@ if percent_tolerance == 500:
     tolerance_prop = 'none'
 else:
     tolerance_prop = str(percent_tolerance)
+    
+    #Check if the fil tolerance value is None - Neil B
+if fil_tolerance == 500:
+    fil_tolerance_prop = 'none'
+else:
+    fil_tolerance_prop = str(fil_tolerance)    
 
 #Main output directory
 main_out_dir   = main_dir+'__pt_'+str(tolerance_prop)+'__n_'+str(num_frames_ave)+'__ymax_'+str(int(plot_ymax))+'__p_'+str(min_path_length)+'__fx_'+fit_function
@@ -128,7 +143,7 @@ for root, subFolders, files in os.walk(main_dir):
     if len(subFolders) == 0:
         #Prepare the python script to read frames
         
-        tif_files = list(filter(lambda x:x[-4:] == '.tif',files))
+        tif_files    = list(filter(lambda x:x[-4:] == '.tif',files))
         if len(tif_files) == 0:
             continue
         
@@ -139,26 +154,13 @@ for root, subFolders, files in os.walk(main_dir):
         #Remove all the spaces in the directories as it causes problems in analysis  
         head,tail_dir= os.path.split(root)
         tail_dir     = '_'.join(tail_dir.split())
-        new_root     = head+'/'+tail_dir
+        new_root     = os.path.join(head, tail_dir)
         os.rename(root,new_root)
-        root = head+'/'+tail_dir
-        script_file  = root+'.py'
-        f            = open(script_file,'w') 
-        lines      = ["#!/usr/bin/env python",
-                      "import os",
-                      "from FAST import motility",
-                      "import sys",
-                      "new_Motility            = motility.Motility()",
-                      "new_Motility.directory  = '"+tail_dir+"'",
-                      "new_Motility.header     = 'img_000000'",
-                      "new_Motility.tail       = '"+tail_tif+"'",
-                      "new_Motility.read_frame(float(sys.argv[1]),"+force_analysis_str+")",
-                      "new_Motility.save_frame()"]
-        
-        f.write('\n'.join(lines))
-        f.close()
+#         root = head+'/'+tail_dir
 
-        #Prepare the input file for ppss
+        root=os.path.join(head,tail_dir)
+
+        #Prepare the input file for later processing
         input_file = root+'.in'
         f          = open(input_file,'w')
         files      = list(filter(lambda x:os.path.splitext(x)[1] == '.tif',os.listdir(root)))
@@ -172,19 +174,27 @@ for root, subFolders, files in os.walk(main_dir):
 '''
 The analysis starts here
 '''
+odir='outputs'
+omain=os.path.join(odir,main_out_dir)
+ocomb=os.path.join(omain,'combined')
 
-if not os.path.isdir('outputs'):
-    os.makedirs('outputs')
+if not os.path.isdir(odir):
+    os.mkdir(odir)
 
-if not os.path.isdir('outputs/'+main_out_dir):
-    os.makedirs('outputs/'+main_out_dir)
+if not os.path.isdir(omain):
+    os.mkdir(omain)
 
-if not os.path.isdir('outputs/'+main_out_dir+'/combined'):
-    os.makedirs('outputs/'+main_out_dir+'/combined')
+if not os.path.isdir(ocomb):
+    os.mkdir(ocomb)
 
 #Output file for parameter averages
-out_MEAN_fname  = os.path.abspath('outputs/'+main_out_dir+'/combined/MEAN_values.txt')
-out_SEM_fname   = os.path.abspath('outputs/'+main_out_dir+'/combined/SEM_values.txt')
+
+
+out_MEAN_fname  = os.path.join(os.path.abspath(ocomb),'MEAN_values.txt')
+out_SEM_fname   = os.path.join(os.path.abspath(ocomb),'SEM_values.txt')
+
+
+
 
 #If we force the analysis or recalculate the parameters, rewrite the values
 if not os.path.isfile(out_MEAN_fname) or force_analysis or recalculate:
@@ -204,19 +214,19 @@ process_folders = {}
 
 for root, subFolders, files in os.walk(main_dir):
     #Split the entries
-    split_path_entries = root.split('/')
-    
+
+    split_path_entries = root.split(os.sep)
+
+
     #Create the top-level directory in outputs folder
     top_directory      = split_path_entries[0]
-    
+
     #Check for either *.tif or *.npy files for folders to be processed 
-    if len(subFolders) == 0 \
-        and (len(list(filter(lambda x:x[-4:] == '.tif',files))) > 0 \
-        or len(list(filter(lambda x:x[:6] == 'filXYs',files))) > 0):
-        entries = root.split('/')
-        top_folder = '/'.join(entries[:-1])
+    if len(subFolders) == 0 and (len(list(filter(lambda x:x[-4:] == '.tif',files))) > 0 or len(list(filter(lambda x:x[:6] == 'filXYs',files))) > 0):
+        entries = root.split(os.sep)
+        top_folder = os.sep.join(entries[:-1])
         exp_num    = entries[-1]
-        if top_folder not in process_folders:
+        if not top_folder in process_folders:
             process_folders[top_folder] = []
         process_folders[top_folder].append(exp_num)
 
@@ -243,9 +253,18 @@ for top_root in sorted_top_roots:
     
     #Combined max length velocity data
     combined_max_len_vel  = []
+
+    # neil adding part to create combined filtered velocity data holder
+    combined_filt_len_vel = []
     
+    # neil - for mean vel data
+    combined_mean_len_vel = []
+    
+    combined_final_len_vel = []
+    
+     
     #Final - folder : lowest level folder
-    data_info        = top_root.split('/')
+    data_info        = top_root.split(os.sep)
     top_folder       = data_info[-1]
     root_header      = '_'.join(data_info)  
     
@@ -294,12 +313,12 @@ for top_root in sorted_top_roots:
         protein_conc = 0.0
     
     #Final - folder : lowest level folder
-    data_info        = top_root.split('/')
+    data_info        = top_root.split(os.sep)
     top_folder       = data_info[-1]
     root_header      = '_'.join(data_info)  
     
     #Combined length-velocity
-    combined_vl_png_name = cwd+'/outputs/'+main_out_dir+'/combined/'+root_header+'_length_velocity.png'
+    combined_vl_png_name = os.path.join(cwd,ocomb, root_header+'_length_velocity.png')
     
     #If combined analysis is performed skip
     if not recalculate and not force_analysis and os.path.isfile(combined_vl_png_name):
@@ -310,7 +329,9 @@ for top_root in sorted_top_roots:
     
     for final_folder in process_folders[top_root]:
         #Construct root name
-        root = top_root+'/'+final_folder
+        root = top_root+os.sep+final_folder
+
+
         
         #Check movie quality
         new_Frame            = motility.Frame()
@@ -330,39 +351,47 @@ for top_root in sorted_top_roots:
         
         #If the picture quality is bad, return early
         if picture_quality == 'bad':
-            print('Bad picture quality in %s'%(root))
+            print ('Bad picture quality in %s'%(root))
             continue
         
         #Output filenames
-        file_header = '_'.join(root.split('/'))
+        file_header = '_'.join(root.split(os.sep))
         
-        out_vl_png_fname  = cwd+'/outputs/'+main_out_dir+'/'+'_'.join(root.split('/'))+'_length_velocity.png'
-        out_vl_txt_fname  = cwd+'/outputs/'+main_out_dir+'/'+'_'.join(root.split('/'))+'_'
-        out_path_fname    = cwd+'/outputs/'+main_out_dir+'/'+'_'.join(root.split('/'))+'_paths'
+        out_vl_png_fname  = cwd+os.sep+'outputs'+os.sep+main_out_dir+os.sep+'_'.join(root.split(os.sep))+'_length_velocity.png'        
+        out_vl_txt_fname  = cwd+os.sep+'outputs'+os.sep+main_out_dir+os.sep+'_'.join(root.split(os.sep))+'_'
+        out_path_fname    = cwd+os.sep+'outputs'+os.sep+main_out_dir+os.sep+'_'.join(root.split(os.sep))+'_paths'
         
-        #Input and script filenames for ppss(parallel processing)
+        #Input and script filenames for parallel processing
         input_file   = final_folder+'.in'
         script_file  = final_folder+'.py'
-        
-        print('Processing tif files in %s'%(root))
+
+               
+        print ('Processing tif files in %s'%(root))
         
         #Start the timer
         start_t      = time.time()
         
-        #If ppss directory exists remove it recursively before starting
-        if os.path.exists('ppss_dir'):
-            out = commands_getstatusoutput("rm -rf ppss_dir")
-            
-        #Parallel-execution of filament extraction of all the frames
-        out = commands_getstatusoutput("ppss -f "+input_file+" -c 'python "+script_file+" '")
+
+        input_flist = cwd+os.sep+root+'.in'
+        input_script = cwd+os.sep+root+'.py'
+
         
-        #Check ppss installation
-        if len(out) == 2 and 'ppss: not found' in out[1]:
-            sys.exit("PPSS is not installed. Please install PPSS to use FAST.")
+        f         = open(input_flist,'r')
+        frame_nos = [int(line.strip()) for line in f.readlines()]
+        f.close()
+
+                
+        # Non parallel-execution of filament extraction of all the frames
+        for each in frame_nos:       
+            new_Motility            = motility.Motility()
+            new_Motility.directory  = cwd+os.sep+root
+            new_Motility.header     = 'img_000000'
+            new_Motility.tail       = ''
+            new_Motility.read_frame(each,False)
+            new_Motility.save_frame()
+
             
-        #Delete ppss output directory
-        out = commands_getstatusoutput("rm -rf ppss_dir")
-        
+
         #Go through all the saved npy files - make the frame links
         f         = open(input_file,'r')
         frame_nos = [int(line.strip()) for line in f.readlines()]
@@ -370,7 +399,7 @@ for top_root in sorted_top_roots:
         
         #Determine the number of frames in a movie
         number_of_frames = len(frame_nos)
-        
+        print("number of frames is "+str(number_of_frames))        
         if len(frame_nos) > 0:
             #Create the Motility object
             new_motility                = motility.Motility()
@@ -387,23 +416,24 @@ for top_root in sorted_top_roots:
             new_motility.overlap_score_cutoff       = overlap_score_cutoff
             new_motility.log_area_score_cutoff      = log_area_score_cutoff
             new_motility.diff_log_area_score_cutoff = diff_log_area_score_cutoff 
-            
+          
             #If links are already constructed read frame links and skip the next parts
             if not new_motility.read_frame_links():
                 new_motility.load_frame1(0)
                 new_motility.read_metadata()
                 
                 for no in frame_nos[1:]:
-                    print('Making the links: Frame: %d'%(no))
+                    print ('Making the links: Frame: %d'%(no))
                     new_motility.load_frame2(no)
                     new_motility.make_frame_links()
                     new_motility.frame1 = new_motility.frame2
                 
                 #Save the frame-links
                 new_motility.save_links()
+                
             
             #Process the frame links to create paths, path velocities
-            new_motility.process_frame_links(num_frames_ave)
+            new_motility.process_frame_links(num_frames_ave, percent_tolerance, min_path_length, max_length, fil_tolerance, minvfil)
             
             #Plot created paths
             new_motility.plot_2D_path_data(num_frames_ave, extra_fname=out_path_fname)
@@ -435,11 +465,18 @@ for top_root in sorted_top_roots:
             combined_full_len_vel.append(new_motility.full_len_vel)
             combined_max_len_vel.append(new_motility.max_len_vel)
             
+             # keep adding the filtered data also - neil B
+            combined_filt_len_vel.append(new_motility.filt_len_vel)
+            combined_mean_len_vel.append(new_motility.mean_len_vel)
+            combined_final_len_vel.append(new_motility.final_len_vel)
+                       
             #Update the counters
             all_data_counter += 1
             
         end_t = time.time()
-        print("Time spent: %.1f"%(end_t-start_t))
+        print ("Time spent: %.1f"%(end_t-start_t))
+
+        
     
     
     #Go back to main directory
@@ -450,22 +487,29 @@ for top_root in sorted_top_roots:
         continue
     
     #Prompt which files are combined
-    print("Combining data in %s"%(root_header))
+    print ("Combining data in %s"%(root_header))
     
     #Process and write down the combined results 
     combined_full_len_vel = np.vstack(combined_full_len_vel)
     combined_max_len_vel  = np.vstack(combined_max_len_vel)
+    combined_filt_len_vel = np.vstack(combined_filt_len_vel)
+    combined_mean_len_vel = np.vstack(combined_mean_len_vel)
+    combined_final_len_vel = np.vstack(combined_final_len_vel)    
     
-    #Motility object for combined lenth-velocity data
+    #Motility object for combined length-velocity data
     combined_motility              = motility.Motility()
-    combined_motility.directory    = 'outputs/'+main_out_dir+'/combined'
+    combined_motility.directory    = 'outputs'+os.sep+main_out_dir+os.sep+'combined'
     combined_motility.full_len_vel = combined_full_len_vel
     combined_motility.max_len_vel  = combined_max_len_vel
+    combined_motility.filt_len_vel = combined_filt_len_vel # neil B    
     combined_motility.num_frames   = number_of_frames
     combined_motility.dx           = 1.0*pixel_size
     combined_motility.max_velocity = 1.0*max_velocity/pixel_size
     combined_motility.min_velocity = min_velocity
-
+    combined_motility.minvfil = minvfil # neil B
+    combined_motility.mean_len_vel = combined_mean_len_vel # neil B
+    combined_motility.final_len_vel = combined_final_len_vel # neil B
+    
     #Assign the hard-coded parameters
     combined_motility.overlap_score_cutoff       = overlap_score_cutoff
     combined_motility.log_area_score_cutoff      = log_area_score_cutoff
@@ -500,7 +544,9 @@ for top_root in sorted_top_roots:
     #Stats lines to write
     fmt_string = "%6d\t%4d\t%80s\t%20s\t%20d"+"\t%20.3f"*11+"\n"
     mean_line  = fmt_string%(slide_num,combined_data_counter, root_header, protein_name, total_filtered_points, protein_conc, utrophin_conc, mvals[1], mvals[2], mvals[3], mvals[4], mvals[5], mvals[6], mvals[7], mvals[8], mvals[9])
-    std_line   = fmt_string%(slide_num,combined_data_counter, root_header, protein_name, total_filtered_points, protein_conc, utrophin_conc, svals[1], svals[2], svals[3], svals[4], svals[5], svals[6], svals[7], svals[8], mvals[9])
+    std_line   = fmt_string%(slide_num,combined_data_counter, root_header, protein_name, total_filtered_points, protein_conc, utrophin_conc, svals[1], svals[2], svals[3], svals[4], svals[5], svals[6], svals[7], svals[8], svals[9])
+    # fix line above to get stds for all Neil B
+    
     
     m_stats.write(mean_line)
     s_stats.write(std_line)

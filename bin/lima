@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/Users/neilbillington/.virtualenvs/fast/bin/python
 import matplotlib
 matplotlib.use('TkAgg')
 
@@ -115,7 +115,7 @@ fit_function_name = '_stop_model'
 load_molecule  = r'utrophin'
 
 #Check if the last character is '/' - if yes, remove it
-if main_dir != None and len(main_dir) > 0 and main_dir[-1] == '/':
+if main_dir != None and len(main_dir) > 0 and main_dir[-1] == os.sep:
     main_dir = main_dir[:-1]
 
 #Check if the directory exists
@@ -123,8 +123,8 @@ if main_dir == None or not os.path.isdir(main_dir):
     sys.exit("Directory or file doesn't exist. Program is exiting.")
 
 ##Combined-averaged data
-all_mean_file      = main_dir+'/combined/MEAN_values.txt'
-all_std_file       = main_dir+'/combined/SEM_values.txt'
+all_mean_file      = main_dir+os.sep+'combined'+os.sep+'MEAN_values.txt'
+all_std_file       = main_dir+os.sep+'combined'+os.sep+'SEM_values.txt'
 
 if not os.path.isfile(all_mean_file):
     sys.exit("Combined analysis file does not exist. Program is exiting.")
@@ -134,7 +134,7 @@ valid,std_data  = read_stats_files(all_std_file)
 valid,mean_data = read_stats_files(all_mean_file)
 
 #Header name for the files generated
-header = main_dir+'/combined/lima'
+header = main_dir+os.sep+'combined'+os.sep+'lima'
 if not os.path.exists(header):
     os.mkdir(header)
 
@@ -355,7 +355,7 @@ py.xlim([min_load_plot,max_load_plot])
 py.ylabel('MVIS (nm/s)')
 py.xlabel('Utrophin (nM)')
 
-py.savefig(header+'/'+'_vs_'.join(proteins)+fit_function_name+tail+'.png',dpi=100)
+py.savefig(header+os.sep+'_vs_'.join(proteins)+fit_function_name+tail+'.png',dpi=100)
 py.close()
     
 #Filament length - avg
@@ -403,7 +403,7 @@ for i in range(len(proteins)):
     lines.append(line[0])
     
     data_combined = np.hstack((np.vstack(utr),np.vstack(mean_length),np.vstack(std_length)))
-    np.savetxt(header+'/'+proteins[i]+'_length.txt',data_combined)
+    np.savetxt(header+os.sep+proteins[i]+'_length.txt',data_combined)
 
 #Plotting parameters
 py.xlim([min_load_plot,max_load_analysis])
@@ -411,5 +411,5 @@ py.xlabel(load_molecule+'(nM)')
 py.ylabel('Filament length(nm)')
 py.legend(lines,proteins,loc=1)
 
-py.savefig(header+'/'+'_vs_'.join(proteins)+'_length'+tail+'.png',dpi=200)
+py.savefig(header+os.sep+'_vs_'.join(proteins)+'_length'+tail+'.png',dpi=200)
 py.close()

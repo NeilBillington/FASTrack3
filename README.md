@@ -1,3 +1,36 @@
+# Fast v3.0: Based on - Fast Automated Spud Tracker. See below for more details of version 1. The version here is modified by Neil Billington to work on python 3. Has an additional output with per "filament" stats (instead of per N frame window). Note that the parallel processing was deactivated in this version to allow it to work smoothly (no ppss requirement). It runs faster without for small-moderate sized datasets anyway. May need to be rewritten with updated parallelization method for large datasets. 
+
+Please cite [**Aksel T, Yu EC, Sutton S, Ruppel KM, Spudich JA. Cell Reports. 2015. Ensemble force changes that result from human cardiac myosin mutations and a small molecule effector.**][1]
+
+[1]: http://www.cell.com/cell-reports/abstract/S2211-1247(15)00381-2
+
+
+Installation process - assuming Mac with bash as default shell.
+
+First install virtualenv and virtualenvwrapper. To get virtualenv working, may need to add the following to the .bashrc 
+
+export WORKON_HOME=~/.virtualenvs
+[ -f /usr/local/bin/virtualenvwrapper.sh ] && source /usr/local/bin/virtualenvwrapper.sh
+
+# make the FAST virtualenv
+`mkvirtualenv FAST -p python3.8`
+
+# activate the fast virtualenv
+`workon FAST`
+
+To install the FAST package, type and execcute
+
+`$(FAST) pip install FASTrack` 
+
+For most up to date version of the package, clone or download FAST github repository. Inside the `FAST` package folder, execute
+
+`$(FAST) pip install .` 
+
+
+
+
+
+
 # FAST v1.0.1: Fast Automated Spud Tracker
 
 Please cite [**Aksel T, Yu EC, Sutton S, Ruppel KM, Spudich JA. Cell Reports. 2015. Ensemble force changes that result from human cardiac myosin mutations and a small molecule effector.**][1]

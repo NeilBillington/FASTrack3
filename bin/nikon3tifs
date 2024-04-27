@@ -1,0 +1,99 @@
+#!/Users/neilbillington/.virtualenvs/fast/bin/python
+
+import os
+import glob
+import sys
+import argparse
+import warnings
+import numpy as np
+
+
+
+import imageio
+from nd2reader import ND2Reader
+
+
+usage            = ['%(prog)s -d [DIRECTORY]',
+                    '------------------------------------------------------------------------',
+                    'nikontotifs: Converts nd2 files to tiff files for FAST tracking',
+                    'this takes the metadata timestamps and creates metadata files',
+                    'for the FAST program to use',
+                    'will convert all nd2 in folder and subfolders',
+                    '10/05/2020',
+                    'Neil B',
+                    
+                    '------------------------------------------------------------------------'
+                    ]
+
+#Create the parser
+parser = argparse.ArgumentParser(description='',usage='\n'.join(usage)) 
+parser.add_argument('-d',help='top directory of the stack files to be converted to tif files')
+parser.add_argument('-s',help='Lower bound for the size(Mbytes) of nd2 files to be converted',default=0.5,type=float)
+parser.add_argument('-f',help='Frame rate for the movies - hopefully not needed',default=123.456,type=float)
+args = parser.parse_args()
+args_dict = vars(args)
+parser.print_help()
+
+
+#Get the argument
+main_dir   = args_dict['d']
+min_size   = args_dict['s']
+frame_rate = args_dict['f'] 
+
+print ("Top directory is %s" % main_dir)
+print ("Actual script in use is ....")
+print (os.path.abspath(__file__))
+
+# -------------------------------------------------------------------------
+
+#Check if the directory exists
+if main_dir == None or not os.path.isdir(main_dir):
+    sys.exit("Directory doesn't exist. Program is exiting.")
+
+'''
+Recurse through each data directory
+'''
+for root, subFolders, files in os.walk(main_dir):
+    if len(subFolders) == 0:
+        nd2_files = filter(lambda f: os.path.getsize(root+'/'+f)*1E-6 > min_size and os.path.splitext(f)[1] == '.nd2', files)
+        
+        for nd2_file in nd2_files:
+			
+            fname = (root+'/'+nd2_file)
+			
+            #Find the directory the tiff stack file is located
+            abs_path  = os.path.abspath(fname)
+            head,tail = os.path.split(abs_path)
+            base,ext  = os.path.splitext(tail)
+    
+            #Make the new directory
+            new_dir   = head+'/'+('_'.join(base.split())).replace('#','')
+            if not os.path.isdir(new_dir):
+                os.mkdir(new_dir)
+        	
+        	
+    
+    		#Read all the frames
+
+            nd2_frames  = ND2Reader(fname)
+            num_frames   = len(nd2_frames)
+            print (" number of frames is %d "% num_frames)
+
+            f = open(new_dir+'/metadata.txt','w')
+            elapsed_time_ms = 0.0
+
+
+            #Write out the individual image files
+            for i in range(num_frames):
+                fout = new_dir+'/img_000000%03d'%(i)+'__000.tif'
+                imagetemp = nd2_frames[i]
+                max=np.amax(imagetemp)
+                min=np.amin(imagetemp)
+                imagetemp = 255*((imagetemp-min)/(max-min))
+                imagetemp = np.round(imagetemp, 0)
+                imagetemp=imagetemp.astype('uint8')
+                imageio.imwrite(fout, imagetemp)
+                #Write elapsed times
+                f.write('  "ElapsedTime-ms": %d,\n'%(elapsed_time_ms))
+                elapsed_time_ms += 1000*1.0/frame_rate
+            f.close()	

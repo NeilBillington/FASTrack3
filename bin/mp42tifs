@@ -1,0 +1,119 @@
+#!/Users/neilbillington/.virtualenvs/fast/bin/python
+import matplotlib
+matplotlib.use('TkAgg')
+
+import os
+import glob
+import sys
+import argparse
+import warnings
+
+
+
+#Suppress all the warnings
+# warnings.filterwarnings("ignore")
+
+#Definition of the program
+# made using the basics from stack2tifs  - Neil Jun 2017
+
+usage            = ['%(prog)s -d [DIRECTORY]',
+                    '------------------------------------------------------------------------',
+                    'mp4totifs: Converts mp4 files to tiff files for FAST tracking',
+                    'this version expects mp3 to come from VHS data and crops the images to',
+                    'remove the text on the right hand side',
+                    'use nocropmp4totifs if no cropping needed',
+                    'will convert all in folder and subfolders',
+                    '06/21/2017',
+                    'Neil B',
+                    
+                    '------------------------------------------------------------------------'
+                    ]
+
+#Create the parser
+parser = argparse.ArgumentParser(description='',usage='\n'.join(usage)) 
+parser.add_argument('-d',help='top directory of the stack files to be converted to tif files')
+parser.add_argument('-s',help='Lower bound for the size(Mbytes) of mp4 files to be converted',default=0.5,type=float)
+parser.add_argument('-f',help='Frame rate for the movies - default 29.97 i.e. VHS',default=29.97,type=float)
+args = parser.parse_args()
+args_dict = vars(args)
+parser.print_help()
+
+
+#Get the argument
+main_dir   = args_dict['d']
+min_size   = args_dict['s']
+frame_rate = args_dict['f'] 
+
+# part below is chopped from motility.py and modified ------------
+
+
+
+# -------------------------------------------------------------------------
+
+#Check if the directory exists
+if main_dir == None or not os.path.isdir(main_dir):
+    sys.exit("Directory doesn't exist. Program is exiting.")
+
+'''
+Recurse through each data directory
+'''
+for root, subFolders, files in os.walk(main_dir):
+    if len(subFolders) == 0:
+        mp4_files = filter(lambda f: os.path.getsize(root+os.sep+f)*1E-6 > min_size and os.path.splitext(f)[1] == '.mp4', files)
+        
+        for mp4_file in mp4_files:
+			
+			fname = (root+os.sep+mp4_file)
+			#
+		    #Find the directory the tiff stack file is located
+			abs_path  = os.path.abspath(fname)
+			head,tail = os.path.split(abs_path)
+			base,ext  = os.path.splitext(tail)
+    
+			#Make the new directory
+			new_dir   = head+os.sep+('_'.join(base.split())).replace('#','')
+			if not os.path.isdir(new_dir):
+				os.mkdir(new_dir)
+        	
+        	
+			newname=new_dir+os.sep+"img_%9d__000.tif"
+			cropstring="crop=522:422:0:0"
+			
+			
+			
+			qfn='"{}"'.format(fname)
+			qnn='"{}"'.format(newname)
+			qcropstring='"{}"'.format(cropstring)
+        	
+			instring = "ffmpeg -y -i %s -an -r %f -pix_fmt rgb24 -vcodec tiff -vf %s  %s "% (qfn,frame_rate,qcropstring,qnn)
+			
+			
+			os.system(instring)
+        		
+        	
+			num_frames = 0
+			
+			num_frames = len(glob.glob1(new_dir,"*.tif"))
+        	
+			
+        	
+			f = open(new_dir+os.sep+'metadata.txt','w')
+			elapsed_time_ms = 0.0
+    		
+			for i in range(num_frames):
+			
+			
+			# put in something to deal with starting at 1 issue - needs to start at 0
+			
+				oldnum = i + 1	
+				oldfile=new_dir+os.sep+'img_%09d'%(oldnum)+'__000.tif'
+				newfile=new_dir+os.sep+'img_%09d'%(i)+'__000.tif'
+				os.rename(oldfile,newfile)
+			
+				
+				#Write elapsed times
+				
+				f.write('  "ElapsedTime-ms": %d,\n'%(elapsed_time_ms))
+				elapsed_time_ms += 1000*1.0/frame_rate
+				
+			f.close() 		

@@ -29,7 +29,7 @@ params = {'axes.labelsize':40,
           'lines.linewidth' : 10,
           'mathtext.fontset':'cm',
           'mathtext.default' :'regular',
-          'mathtext.fallback_to_cm' : True,
+#          'mathtext.fallback_to_cm' : True,
           'axes.formatter.limits' : (-4, 4),
           'figure.subplot.top'    : 0.95,
           'figure.subplot.bottom' : 0.135
