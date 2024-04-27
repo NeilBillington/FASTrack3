@@ -14,10 +14,10 @@ First install virtualenv and virtualenvwrapper. To get virtualenv working, may n
 export WORKON_HOME=~/.virtualenvs
 [ -f /usr/local/bin/virtualenvwrapper.sh ] && source /usr/local/bin/virtualenvwrapper.sh
 
-# make the FAST virtualenv
+Make the FAST virtualenv
 `mkvirtualenv FAST -p python3.8`
 
-# activate the fast virtualenv
+Activate the fast virtualenv
 `workon FAST`
 
 To install the FAST package, type and execcute
