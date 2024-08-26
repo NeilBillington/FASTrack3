@@ -28,9 +28,12 @@ change to the virtualenv directory
 clone the repository
 'git clone https://github.com/NeilBillington/FASTrack3.git'
 
-Note that shift-cmd-. will unhide the hidden .virtualenvs directory 
+Note that shift-cmd-. will unhide the hidden .virtualenvs directory
+
 copy the contents of Users/joebloggs/.virtualenvs/fast/FASTrack3/bin to Users/joebloggs/.virtualenvs/fast/bin
+
 copy Users/joebloggs/.virtualenvs/fast/FASTrack3/FAST to Users/joebloggs/.virtualenvs/fast/FAST
+
 copy requirements.txt from Users/joebloggs/.virtualenvs/fast/FASTrack3/ to Users/joebloggs/.virtualenvs/fast/
 
 Install the requirements. Inside Users/joebloggs/.virtualenvs/fast type
