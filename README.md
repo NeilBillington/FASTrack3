@@ -15,18 +15,27 @@ export WORKON_HOME=~/.virtualenvs
 [ -f /usr/local/bin/virtualenvwrapper.sh ] && source /usr/local/bin/virtualenvwrapper.sh
 
 Make the FAST virtualenv
-`mkvirtualenv FAST -p python3.8`
+`mkvirtualenv fast -p python3.9`
 
 Activate the fast virtualenv
-`workon FAST`
+`workon fast`
 
-To install the FAST package, type and execcute
+Prompt should now show (fast)
 
-`$(FAST) pip install FASTrack` 
+change to the virtualenv directory 
+'cd /Users/joebloggs/.virtualenvs/fast/'
 
-For most up to date version of the package, clone or download FAST github repository. Inside the `FAST` package folder, execute
+clone the repository
+'git clone https://github.com/NeilBillington/FASTrack3.git'
 
-`$(FAST) pip install .` 
+Note that shift-cmd-. will unhide the hidden .virtualenvs directory 
+copy the contents of Users/joebloggs/.virtualenvs/fast/FASTrack3/bin to Users/joebloggs/.virtualenvs/fast/bin
+copy Users/joebloggs/.virtualenvs/fast/FASTrack3/FAST to Users/joebloggs/.virtualenvs/fast/FAST
+copy requirements.txt from Users/joebloggs/.virtualenvs/fast/FASTrack3/ to Users/joebloggs/.virtualenvs/fast/
+
+Install the requirements. Inside Users/joebloggs/.virtualenvs/fast type
+`pip install -r requirements.txt` 
+
 
 
 
